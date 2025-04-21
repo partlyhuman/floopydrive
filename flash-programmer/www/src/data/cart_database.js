@@ -41,6 +41,13 @@ export default {
         "fullCrc": "10c5f568",
         "internalCrc": "d90fe762"
     },
+    "b5be48d7": {
+        "name": "Puppy Love Story [T-En]",
+        "product": "XK-501",
+        "mbit": "16",
+        "fullCrc": "038a02a9",
+        "internalCrc": "b5be48d7"
+    },
     "f294f931": {
         "name": "Pasocom Collection",
         "product": "XK-502",
