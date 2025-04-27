@@ -1,0 +1,6 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "LOOPY_Cart")(type "KiCad")(uri "${KIPRJMOD}/Libraries/LOOPY_Cart.pretty")(options "")(descr ""))
+  (lib (name "LOOPY_Batt")(type "KiCad")(uri "${KIPRJMOD}/Libraries/CR-2032_HF1N")(options "")(descr ""))
+  (lib (name "LOOPY_M29F160")(type "KiCad")(uri "${KIPRJMOD}/Libraries/M29F160")(options "")(descr ""))
+)

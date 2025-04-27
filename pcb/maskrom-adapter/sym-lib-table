@@ -1,0 +1,6 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "LOOPY_Cart")(type "KiCad")(uri "${KIPRJMOD}/Libraries/LOOPY_Cart.kicad_sym")(options "")(descr ""))
+  (lib (name "LOOPY_Batt")(type "KiCad")(uri "${KIPRJMOD}/Libraries/CR-2032_HF1N/CR-2032_HF1N.kicad_sym")(options "")(descr ""))
+  (lib (name "LOOPY_M29F160")(type "KiCad")(uri "${KIPRJMOD}/Libraries/M29F160/M29F160FB5AN6F2.kicad_sym")(options "")(descr ""))
+)
