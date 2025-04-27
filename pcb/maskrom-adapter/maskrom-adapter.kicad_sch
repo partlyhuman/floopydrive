@@ -5,10 +5,135 @@
 	(uuid "5081f4fb-0c92-4cfc-8c52-39777c6d96ed")
 	(paper "A4")
 	(title_block
-		(title "Reverse Engineered XK-403")
-		(date "2023-03-08")
+		(title "XK-403 Maskrom TSOP48 Adapter")
+		(date "2025-04-26")
 	)
 	(lib_symbols
+		(symbol "Device:R_Small"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0.254)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "R"
+				(at 0 0 90)
+				(effects
+					(font
+						(size 1.016 1.016)
+					)
+				)
+			)
+			(property "Value" "R_Small"
+				(at 1.778 0 90)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Resistor, small symbol"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "R resistor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "R_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "R_Small_0_1"
+				(rectangle
+					(start -0.762 1.778)
+					(end 0.762 -1.778)
+					(stroke
+						(width 0.2032)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "R_Small_1_1"
+				(pin passive line
+					(at 0 2.54 270)
+					(length 0.762)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -2.54 90)
+					(length 0.762)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "LOOPY_Cart:UPD23C16000"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -1866,6 +1991,12 @@
 			(embedded_fonts no)
 		)
 	)
+	(junction
+		(at 100.33 73.66)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "ce9f7343-a612-45b5-aac1-f0eb41b341d3")
+	)
 	(no_connect
 		(at 105.41 83.82)
 		(uuid "2fd905f2-1b1e-42f5-ad05-f4ab3c364a20")
@@ -1884,23 +2015,93 @@
 	)
 	(wire
 		(pts
-			(xy 96.52 76.2) (xy 105.41 76.2)
+			(xy 99.06 73.66) (xy 100.33 73.66)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "395c6166-fd98-45f9-a826-63d193912ee5")
+		(uuid "02e457aa-d1b3-4594-ad52-0e73aa0849f0")
 	)
 	(wire
 		(pts
-			(xy 96.52 73.66) (xy 105.41 73.66)
+			(xy 100.33 73.66) (xy 105.41 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0d3d5336-07c9-4826-b80c-2a1c4c93507a")
+	)
+	(wire
+		(pts
+			(xy 100.33 76.2) (xy 100.33 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2d380b42-cf29-4eb5-ab58-88bbe29bda5a")
+	)
+	(wire
+		(pts
+			(xy 87.63 73.66) (xy 93.98 73.66)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
 		(uuid "84552292-64ae-487a-9185-0f0ffc1ab282")
+	)
+	(wire
+		(pts
+			(xy 105.41 76.2) (xy 100.33 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8f38fdff-436a-4a1c-ac57-d153dc982ced")
+	)
+	(wire
+		(pts
+			(xy 148.59 39.37) (xy 100.33 39.37)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e0b83212-5a18-4f84-9db6-c17d86522062")
+	)
+	(wire
+		(pts
+			(xy 100.33 39.37) (xy 100.33 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ec4e11aa-8264-403a-b012-1ae80fae6f63")
+	)
+	(wire
+		(pts
+			(xy 148.59 50.8) (xy 148.59 39.37)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f995b67f-960b-48c8-a8c4-aa0f2b2eb727")
+	)
+	(wire
+		(pts
+			(xy 138.43 50.8) (xy 148.59 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fe48dfdc-f75a-4a5c-992e-80e593187843")
 	)
 	(label "D7"
 		(at 198.12 86.36 0)
@@ -2122,16 +2323,6 @@
 		)
 		(uuid "42e2efea-6b9b-41a0-930c-2a7f91911509")
 	)
-	(label "VCC"
-		(at 96.52 76.2 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "436c66c3-091b-4db8-8fed-db07874956df")
-	)
 	(label "A2"
 		(at 105.41 104.14 180)
 		(effects
@@ -2342,16 +2533,6 @@
 		)
 		(uuid "897b6845-621c-4a4c-9558-ac814db4b7a7")
 	)
-	(label "BYTE"
-		(at 138.43 50.8 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "8b108434-0c16-406e-b768-c7eef4b6ea64")
-	)
 	(label "D6"
 		(at 198.12 91.44 0)
 		(effects
@@ -2513,7 +2694,7 @@
 		(uuid "c338c00c-cb4e-44ff-b91b-4ad9eb501a21")
 	)
 	(label "VCC"
-		(at 96.52 73.66 0)
+		(at 87.63 73.66 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2761,6 +2942,74 @@
 			(justify left bottom)
 		)
 		(uuid "ffdfb444-ed65-4dd6-910b-05664066d063")
+	)
+	(symbol
+		(lib_id "Device:R_Small")
+		(at 96.52 73.66 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "056664c8-56d6-4bf7-8435-fbc96e9ee16d")
+		(property "Reference" "R1"
+			(at 96.52 68.58 90)
+			(effects
+				(font
+					(size 1.016 1.016)
+				)
+			)
+		)
+		(property "Value" "1K"
+			(at 96.52 71.12 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "LED_SMD:LED_0805_2012Metric_Pad1.15x1.40mm_HandSolder"
+			(at 96.52 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 96.52 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor, small symbol"
+			(at 96.52 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "ceb7d874-8f48-4ee5-b862-58a095bc9428")
+		)
+		(pin "1"
+			(uuid "c358084f-6a29-4c33-a132-d6af695252f6")
+		)
+		(instances
+			(project ""
+				(path "/5081f4fb-0c92-4cfc-8c52-39777c6d96ed"
+					(reference "R1")
+					(unit 1)
+				)
+			)
+		)
 	)
 	(symbol
 		(lib_id "LOOPY_M29F160:M29F160FB5AN6F2")
