@@ -13462,9 +13462,9 @@
 		(at 134.62 44.45 0)
 		(unit 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
-		(dnp no)
+		(dnp yes)
 		(fields_autoplaced yes)
 		(uuid "3fdd7f41-65d1-477a-8587-bfe52c72f35c")
 		(property "Reference" "R14"
@@ -17456,7 +17456,7 @@
 				)
 			)
 		)
-		(property "Value" "1K2"
+		(property "Value" "1K"
 			(at 100.33 251.46 90)
 			(effects
 				(font
