@@ -1,17 +1,27 @@
+// ARDUINO BUILD SETTINGS
+//   Earle Philhower Arduino-Pico core (board manager: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json)
+//   Waveshare RP2040 Zero (actual hardware is RP2040 Tiny)
+//   Flash Size: 2MB (Sketch: 1MB, FS: 1MB)
+//   CPU Speed: 240 MHz (Overclock)
+//   Optimize: Optimize More (-O2)
+//   USB Stack: Adafruit TinyUSB
+
 #include <SPI.h>
-#include <MCP23S17.h>
+#include <MCP23S17.h>  // MCP23017_WE library https://docs.arduino.cc/libraries/mcp23017_we/
 #include <Adafruit_TinyUSB.h>
 #include <Adafruit_NeoPixel.h>
 #include <LittleFS.h>
 #include "generated.h"
 
 #define HW_REVISION 8
-// The MCP23S17 is rated for 10MHz
-#define SPI_SPEED 10000000
+// The MCP23S17 is rated for 10MHz, overclock it
+#define SPI_SPEED 24 * 1000 * 1000
 #define DEBUG_LED
 
-// Delays one clock cycle or 7ns | 133MhZ = 0.000000007518797sec = 7.518797ns
-#define NOP __asm__("nop\n\t")
+// Delays one clock cycle or 7ns @ 133MhZ = 0.000000007518797sec = 7.518797ns
+// #define NOP __asm__("nop\n\t")
+// 4.17ns @ 240Mhz, double to 8.33ns so we don't have to change number of NOPs
+#define NOP __asm__("nop\nnop\n")
 #define HALT while (true)
 
 #define ADDRBITS 22
@@ -97,19 +107,19 @@ inline void setAddress(uint32_t addr) {
   static uint32_t lastAddr = 0;
   uint32_t diff = addr ^ lastAddr;
 
-  // // A0-A7
-  // if ((diff & 0x000000ff) != 0) {
-  //   mcpAddr0.setPort(addr & 0xff, A);
-  // }
-  // // A8-A15
-  // if ((diff & 0x0000ff00) != 0) {
-  //   mcpAddr0.setPort((addr >> 8) & 0xff, B);
-  // }
+  // A0-A7
+  if ((diff & 0x000000ff) != 0) {
+    mcpAddr0.setPort(addr & 0xff, A);
+  }
+  // A8-A15
+  if ((diff & 0x0000ff00) != 0) {
+    mcpAddr0.setPort((addr >> 8) & 0xff, B);
+  }
 
   // A0-A15
-  if ((diff & 0x0000ffff) != 0) {
-    mcpAddr0.setPort(addr & 0xff, (addr >> 8) & 0xff);
-  }
+  // if ((diff & 0x0000ffff) != 0) {
+  //   mcpAddr0.setPort(addr & 0xff, (addr >> 8) & 0xff);
+  // }
 
   // A16-A21
   if ((diff & 0x00ff0000) != 0) {

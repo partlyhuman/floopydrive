@@ -420,7 +420,8 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     flashCommand(zeroWithBank(addr), CMD_RESET);
     flashCommand(zeroWithBank(addr), 0x50);
 
-    sprintf(S, "\r\nWrote %d bytes in %0.2f sec using multibyte programming\r", addr * 2, (millis() - stopwatch) / 1000.0);
+    double sec = (millis() - stopwatch) / 1000.0;
+    sprintf(S, "\r\nWrote %d bytes in %0.2f sec (%0.1f KB/s)\r\n", addr, sec, addr /sec / 1024.0);
     echo_all();
     return false;
   }

@@ -290,12 +290,12 @@ void setup_programming() {
 
   // Setup IO expanders
   SPI.begin();
-  mcpAddr0.setSPIClockSpeed(SPI_SPEED);
-  mcpAddr1.setSPIClockSpeed(SPI_SPEED);
-  mcpData.setSPIClockSpeed(SPI_SPEED);
   if (!mcpAddr0.Init()) bootError("mcpAddr0 fail");
   if (!mcpAddr1.Init()) bootError("mcpAddr1 fail");
   if (!mcpData.Init()) bootError("mcpData fail");
+  mcpAddr0.setSPIClockSpeed(SPI_SPEED);
+  mcpAddr1.setSPIClockSpeed(SPI_SPEED);
+  mcpData.setSPIClockSpeed(SPI_SPEED);
 
   ioWriteMode(&mcpData);
   ioWriteMode(&mcpAddr0);
