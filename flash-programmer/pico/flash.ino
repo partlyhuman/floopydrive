@@ -298,8 +298,6 @@ void flashDump(uint32_t starting = 0, uint32_t upto = FLASH_SIZE) {
 
 // Returns whether programming should continue
 bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expectedBytes) {
-  ledColor(0x400040);  // magenta
-
   if ((bufLen % 2) == 1) {
     sprintf(S, "WARNING: odd number of bytes %d\r", bufLen);
     echo_all();
@@ -425,8 +423,6 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     echo_all();
     return false;
   }
-
-  ledColor(0x101010);
 
   return true;
 }

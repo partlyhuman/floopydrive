@@ -16,7 +16,7 @@
 #define HW_REVISION 8
 // The MCP23S17 is rated for 10MHz, overclock it
 #define SPI_SPEED 24 * 1000 * 1000
-#define DEBUG_LED
+#undef DEBUG_LED
 
 // Delays one clock cycle or 7ns @ 133MhZ = 0.000000007518797sec = 7.518797ns
 // #define NOP __asm__("nop\n\t")
