@@ -95,6 +95,12 @@ void flashReadStatus() {
   NOP;
   NOP;
   NOP;
+  NOP;
+  NOP;
+  NOP;
+  NOP;
+  NOP;
+  NOP;
   SRD = readByte();
   busIdle();
 }
@@ -400,15 +406,19 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     flashCommand(currentBank, 0xd0);
 
     if (atBoundary) {
+      // Additional slowdown introduced at bank switch as this proved to be sensitive during overclocking
       do {
-        delay(100);
+        delay(150);
       } while (!flashStatusCheck(currentBank));
       // clear status register
       flashCommand(0, 0x50);
+      delay(100);
       flashCommand(bankBoundary, CMD_RESET);
+      delay(100);
       flashCommand(bankBoundary, 0x50);
-      // sprintf(S, "\rNew block bufPtr=%04x bufLen=%04x addr=%06x end=%06x\r", bufPtr, bufLen, addr, expectedBytes);
-      // echo_all();
+      delay(100);
+      sprintf(S, "\rSwitching banks...\r", bufPtr, bufLen, addr, expectedBytes);
+      echo_all();
     }
   }
 

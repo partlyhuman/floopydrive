@@ -171,10 +171,7 @@ inline void writeByte(uint32_t addr, uint8_t byte) {
 void echo_all(const char *buf = NULL) {
   if (!usb_web.connected()) return;
 
-  if (buf == NULL) {
-    buf = S;
-    // S is already the correct size
-  } else {
+  if (buf) {
     // A string is provided, this will pad it to buffer size and fill with NUL
     strncpy(S, buf, USB_BUFSIZE);
   }
