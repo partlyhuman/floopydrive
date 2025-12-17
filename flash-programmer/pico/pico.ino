@@ -31,6 +31,7 @@
 #define FLASH_BANK_SIZE 0x200000
 #define FLASH_SIZE FLASH_BANK_SIZE << 1
 #define CMD_RESET 0xff
+#define CMD_STATUS_CLR 0x50
 #define PIN_INSERTED 14
 #define USB_BUFSIZE 64
 
@@ -56,7 +57,7 @@ uint16_t SRD;
 
 #define RED  0xFF0000
 #define BLUE 0x0000FF
-Adafruit_NeoPixel led(1, 16, NEO_GRB);
+Adafruit_NeoPixel led(1, 16, NEO_RGB);
 
 inline void ledColor(uint32_t c) {
   led.setPixelColor(0, c);
@@ -101,10 +102,11 @@ inline void databusWriteMode() {
   databusMode = WRITE;
 }
 
+// cache address and only set bits that changed
+static uint32_t lastAddr = 0;
+
 // NOTE address is in bytes, though we write words
 inline void setAddress(uint32_t addr) {
-  // cache address and only set bits that changed
-  static uint32_t lastAddr = 0;
   uint32_t diff = addr ^ lastAddr;
 
   // A0-A7

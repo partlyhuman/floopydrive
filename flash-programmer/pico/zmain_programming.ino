@@ -52,7 +52,14 @@ void loop_programming() {
     // ERASE COMMAND
     if (buf[1] == '\r') {
       ledColor(BLUE);
+      flashCommand(0, CMD_RESET);
+      delay(100);
+      flashClearLocks();
+      delay(100);
+      flashCommand(0, CMD_RESET);
+      delay(100);
       flashEraseAll();
+      delay(100);
       flashCommand(0, CMD_RESET);
       onSuccess();
     } else if (buf[1] == 's' && buf[2] == '\r') {

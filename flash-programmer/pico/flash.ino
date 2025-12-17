@@ -106,37 +106,37 @@ void flashReadStatus() {
 }
 
 // returns TRUE if OK
-bool flashStatusCheck(uint32_t addr = 0, bool clearIfError = true) {
+bool flashStatusCheck(bool clearIfError = true, bool echo = true) {
   bool ok = true;
-  flashCommand(zeroWithBank(addr), 0x70);
+  flashCommand(lastAddr, 0x70);
   flashReadStatus();
   if (!SR(7)) {
-    echo_all("STATUS busy\r\n");
+    if (echo) echo_all("STATUS busy\r\n");
     ok = false;
   }
   if (SR(5) && SR(4)) {
-    echo_all("STATUS improper command\r\n");
+    if (echo) echo_all("STATUS improper command\r\n");
     ok = false;
   }
   if (SR(3)) {
-    echo_all("STATUS undervoltage\r\n");
+    if (echo) echo_all("STATUS undervoltage\r\n");
     ok = false;
   }
   if (SR(1)) {
-    echo_all("STATUS locked\r\n");
+    if (echo) echo_all("STATUS locked\r\n");
     ok = false;
   }
   if (SR(2)) {
-    echo_all("STATUS write suspended\r\n");
+    if (echo) echo_all("STATUS write suspended\r\n");
     ok = false;
   }
   if (SR(6)) {
-    echo_all("STATUS erase suspended\r\n");
+    if (echo) echo_all("STATUS erase suspended\r\n");
     ok = false;
   }
   if (!ok && clearIfError) {
     // clear status register
-    flashCommand(0, 0x50);
+    flashCommand(lastAddr, CMD_STATUS_CLR);
   }
   return ok;
 }
@@ -165,9 +165,9 @@ void flashEraseBank(int bank) {
   delayMicroseconds(100);
   flashCommand(bankAddress, 0xd0);
 
-  const int TIMEOUT_MS = 30000;
+  const int ERASE_TIMEOUT_MS = 30000;
   const int CHECK_INTERVAL_MS = 1000;
-  for (int time = 0; time < TIMEOUT_MS; time += CHECK_INTERVAL_MS) {
+  for (int time = 0; time < ERASE_TIMEOUT_MS; time += CHECK_INTERVAL_MS) {
     flashReadStatus();
     if (SR(7)) {
       echo_all("DONE!\r");
@@ -191,7 +191,7 @@ void flashEraseBank(int bank) {
   // }
 
   // clear status register
-  flashCommand(0, 0x50);
+  flashCommand(0, CMD_STATUS_CLR);
   delayMicroseconds(100);
   // Read mode
   flashCommand(0, 0xff);
@@ -225,6 +225,8 @@ void flashClearLocks() {
 
   if (flashStatusCheck()) {
     echo_all("Lock bits cleared successfully\r");
+  } else {
+    echo_all("Failed to clear lock bits, status above\r");
   }
 }
 
@@ -302,6 +304,45 @@ void flashDump(uint32_t starting = 0, uint32_t upto = FLASH_SIZE) {
   usb_web.flush();
 }
 
+bool waitForStatus(uint32_t timeout_sec = 60) {
+  uint32_t statusStart = millis();
+  uint32_t delayUs = 10;
+  while (true) {
+    flashCommand(lastAddr, 0xe8);
+    flashReadStatus();
+
+    if (SR(7)) {
+      // READY
+      return true;
+    }
+
+    if (millis() - statusStart > timeout_sec * 1000) {
+      // Only fall through here if timeout
+      if (SR(1) == SR(4) == 1) {
+        sprintf(S, "Block lock error @ %06x\r\n", lastAddr);
+        echo_all();
+      }
+      if (SR(3) == SR(4) == 1) {
+        sprintf(S, "Undervoltage error @ %06x\r\n", lastAddr);
+        echo_all();
+      }
+      if (SR(4) == 1 || SR(5) == 1) {
+        sprintf(S, "Unable to multibyte write @ %06x\r\n", lastAddr);
+        echo_all();
+      }
+
+      sprintf(S, "\r\nTIMEOUT STATUS=%x\r\n", SRD);
+      echo_all();
+      // Done retrying
+      return false;
+    } else {
+      // Retry, exponential backoff
+      flashCommand(lastAddr, CMD_STATUS_CLR);
+      delayMicroseconds(delayUs *= 2);
+    }
+  }
+}
+
 // Returns whether programming should continue
 bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expectedBytes) {
   if ((bufLen % 2) == 1) {
@@ -314,7 +355,6 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
   }
 
   // echo progress at fixed intervals
-  // if (addr % 0x10000 == 0) {
   if (addr % 0x08000 == 0) {
     sprintf(S, "%06xh ", addr);
     echo_all();
@@ -335,6 +375,15 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
   // Do however many multibyte writes necessary to empty the buffer
   for (int bufPtr = 0; bufPtr < bufLen;) {
 
+    if (!waitForStatus(2)) {
+      flashCommand(lastAddr, CMD_STATUS_CLR);
+      delay(250);
+      flashClearLocks();
+      delay(1000);
+      echo_all("\rRetrying...\r");
+      continue;
+    }
+
     // Skip blocks of 0xff *between* multibyte writes only, assuming flash has been erased
     if (bufPtr + 1 < bufLen && buf[bufPtr] == buf[bufPtr + 1] == 0xff) {
       bufPtr += 2;
@@ -347,46 +396,8 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     if (addr < bankBoundary && addr + bytesToWrite >= bankBoundary) {
       atBoundary = true;
       bytesToWrite = MIN(bankBoundary - addr, MAX_MULTIBYTE_WRITE);
-      // sprintf(S, "\r\nFinal write into bank 0 writing %d bytes from %x to %x\r\n", bytesToWrite, addr, addr + bytesToWrite);
-      // echo_all();
     }
     int wordsToWrite = bytesToWrite / 2;
-
-    // Check status until we're ready to write more
-    uint retries = 0;
-    do {
-      flashCommand(addr, 0xe8);
-      flashReadStatus();
-
-      if (SR(7)) {
-        // READY
-        break;
-      } else {
-        if (++retries > 1000) {
-          sprintf(S, "\r\nTIMEOUT @ %06x\r\n", addr);
-          echo_all();
-          ledColor(RED);
-          HALT;
-        }
-        // delayMicroseconds(10);
-        continue;
-      }
-
-      // for bigger errors, have a bigger delay before retry
-      if (SR(1) == SR(4) == 1) {
-        sprintf(S, "Block lock error @ %06x\r\n", addr);
-        echo_all();
-      }
-      if (SR(3) == SR(4) == 1) {
-        sprintf(S, "Undervoltage error @ %06x\r\n", addr);
-        echo_all();
-      }
-      if (SR(4) == 1 || SR(5) == 1) {
-        sprintf(S, "Unable to multibyte write @ %06x\r\n", addr);
-        echo_all();
-      }
-      delay(10);
-    } while (!SR(7));
 
     // XSR.7 == 1 now, ready for write
     // A word/byte count (N)-1 is written with write address.
@@ -403,34 +414,48 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     // After the final buffer data is written, write confirm (DOH) must be written.
     // This initiates WSM to begin copying the buffer data to the Flash Array.
     // Use the bank we started with not the bank we ended with
-    flashCommand(currentBank, 0xd0);
+    flashCommand(lastAddr, 0xd0);
 
     if (atBoundary) {
-      // Additional slowdown introduced at bank switch as this proved to be sensitive during overclocking
-      do {
-        delay(150);
-      } while (!flashStatusCheck(currentBank));
-      // clear status register
-      flashCommand(0, 0x50);
-      delay(100);
+      echo_all("...\r");
+      // delay(50);
+      waitForStatus();
+      echo_all("\rSwitching banks...");
+
+      flashCommand(bankBoundary, CMD_STATUS_CLR);
+      delay(500);
+      // echo_all("1");
       flashCommand(bankBoundary, CMD_RESET);
-      delay(100);
-      flashCommand(bankBoundary, 0x50);
-      delay(100);
-      sprintf(S, "\rSwitching banks...\r", bufPtr, bufLen, addr, expectedBytes);
-      echo_all();
+      delay(250);
+      // echo_all("2");
+      flashCommand(bankBoundary, CMD_RESET);
+      delay(250);
+      // echo_all("3");
+
+      while (!flashStatusCheck(true, false)) {
+        echo_all(".");
+        delay(250);
+      }
+
+      // flashCommand(bankBoundary, CMD_STATUS_CLR);
+      // delay(250);
+      echo_all("OK\r\r");
     }
   }
 
   if (addr >= expectedBytes) {
-    delay(100);
-    flashStatusCheck(addr, false);
-    flashCommand(zeroWithBank(addr), CMD_RESET);
-    flashCommand(zeroWithBank(addr), 0x50);
-
+    echo_all("\rFinishing...\r");
+    // delay(50);
+    waitForStatus();
+    flashCommand(lastAddr, CMD_RESET);
+    
     double sec = (millis() - stopwatch) / 1000.0;
-    sprintf(S, "\r\nWrote %d bytes in %0.2f sec (%0.1f KB/s)\r\n", addr, sec, addr /sec / 1024.0);
+    sprintf(S, "\r\nWrote %d bytes in %0.2f sec (%0.1f KB/s)\r\n", addr, sec, addr / sec / 1024.0);
     echo_all();
+
+    delay(100);
+    flashCommand(0, CMD_RESET);
+
     return false;
   }
 
