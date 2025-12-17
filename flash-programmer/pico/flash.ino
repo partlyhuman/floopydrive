@@ -141,9 +141,9 @@ bool flashStatusCheck(bool clearIfError = true, bool echo = true) {
   return ok;
 }
 
-void flashWaitUntilIdle(uint us = 10) {
+void flashWaitUntilIdle() {
   do {
-    delayMicroseconds(us);
+    // delayMicroseconds(us);
     flashReadStatus();
   } while (!SR(7));
 }
@@ -152,7 +152,7 @@ void flashWaitUntilIdle(uint us = 10) {
 
 void flashEraseBank(int bank) {
   int32_t bankAddress = bank ? FLASH_BANK_SIZE : 0;
-  sprintf(S, "Erase bank %d\r", bank);
+  sprintf(S, "Erase bank %d", bank);
   echo_all();
 
   delayMicroseconds(100);
@@ -170,7 +170,7 @@ void flashEraseBank(int bank) {
   for (int time = 0; time < ERASE_TIMEOUT_MS; time += CHECK_INTERVAL_MS) {
     flashReadStatus();
     if (SR(7)) {
-      echo_all("DONE!\r");
+      echo_all("Erased\r");
       break;
     } else {
       echo_all(".");
@@ -178,8 +178,8 @@ void flashEraseBank(int bank) {
     }
   }
 
-  if (flashStatusCheck(bankAddress)) {
-    echo_all("Bank erase successful!\r");
+  if (!flashStatusCheck(bankAddress)) {
+    echo_all("Bank erase error\r");
   }
 
   // if (SR(4) == 1 && SR(5) == 1) {
@@ -219,14 +219,15 @@ bool flashEraseBlock(uint32_t startAddr) {
 }
 
 void flashClearLocks() {
+  echo_all("Clearing lock bits...");
   flashCommand(0, 0x60);
   flashCommand(0, 0xd0);
   flashWaitUntilIdle();
 
   if (flashStatusCheck()) {
-    echo_all("Lock bits cleared successfully\r");
+    echo_all("Cleared\r");
   } else {
-    echo_all("Failed to clear lock bits, status above\r");
+    echo_all("FAIL\r");
   }
 }
 
@@ -304,15 +305,29 @@ void flashDump(uint32_t starting = 0, uint32_t upto = FLASH_SIZE) {
   usb_web.flush();
 }
 
-bool waitForStatus(uint32_t timeout_sec = 60) {
+// Should only be used to start a multibyte write, diff command than general status checking
+// Technically we could utilize both write buffers and continue to write even if busy reported
+// Exponential backoff
+bool flashSetupMultiByteWrite(uint32_t addr, uint32_t timeout_sec = 60) {
   uint32_t statusStart = millis();
-  uint32_t delayUs = 10;
+  uint32_t delayUs = 2;
   while (true) {
-    flashCommand(lastAddr, 0xe8);
+    // First, multi word/byte write setup (E8H) is written with
+    // the write address. At this point, the device
+    // automatically outputs extended status register data
+    // (XSR) when read
+    flashCommand(addr, 0xe8);
     flashReadStatus();
 
+    // If extended
+    // status register bit XSR.7 is 0, no Multi Word/Byte
+    // Write command is available and multi word/byte write
+    // setup which just has been written is ignored. To retry,
+    // continue monitoring XSR.7 by writing multi word/byte
+    // write setup with write address until XSR.7 transitions
+    // to 1. When XSR.7 transitions to 1, the device is ready
+    // for loading the data to the buffer.
     if (SR(7)) {
-      // READY
       return true;
     }
 
@@ -375,15 +390,6 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
   // Do however many multibyte writes necessary to empty the buffer
   for (int bufPtr = 0; bufPtr < bufLen;) {
 
-    if (!waitForStatus(2)) {
-      flashCommand(lastAddr, CMD_STATUS_CLR);
-      delay(250);
-      flashClearLocks();
-      delay(1000);
-      echo_all("\rRetrying...\r");
-      continue;
-    }
-
     // Skip blocks of 0xff *between* multibyte writes only, assuming flash has been erased
     if (bufPtr + 1 < bufLen && buf[bufPtr] == buf[bufPtr + 1] == 0xff) {
       bufPtr += 2;
@@ -398,6 +404,15 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
       bytesToWrite = MIN(bankBoundary - addr, MAX_MULTIBYTE_WRITE);
     }
     int wordsToWrite = bytesToWrite / 2;
+
+    if (!flashSetupMultiByteWrite(addr)) {
+      flashCommand(lastAddr, CMD_STATUS_CLR);
+      delay(250);
+      flashClearLocks();
+      delay(1000);
+      echo_all("\rRetrying...\r");
+      continue;
+    }
 
     // XSR.7 == 1 now, ready for write
     // A word/byte count (N)-1 is written with write address.
@@ -417,45 +432,22 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     flashCommand(lastAddr, 0xd0);
 
     if (atBoundary) {
-      echo_all("...\r");
-      // delay(50);
-      waitForStatus();
-      echo_all("\rSwitching banks...");
-
+      flashWaitUntilIdle();
       flashCommand(bankBoundary, CMD_STATUS_CLR);
-      delay(500);
-      // echo_all("1");
-      flashCommand(bankBoundary, CMD_RESET);
-      delay(250);
-      // echo_all("2");
-      flashCommand(bankBoundary, CMD_RESET);
-      delay(250);
-      // echo_all("3");
-
-      while (!flashStatusCheck(true, false)) {
-        echo_all(".");
-        delay(250);
-      }
-
-      // flashCommand(bankBoundary, CMD_STATUS_CLR);
-      // delay(250);
-      echo_all("OK\r\r");
     }
   }
 
+  // Buffer empty, return to main loop, or finish up
   if (addr >= expectedBytes) {
     echo_all("\rFinishing...\r");
-    // delay(50);
-    waitForStatus();
+    flashWaitUntilIdle();
     flashCommand(lastAddr, CMD_RESET);
-    
+
     double sec = (millis() - stopwatch) / 1000.0;
     sprintf(S, "\r\nWrote %d bytes in %0.2f sec (%0.1f KB/s)\r\n", addr, sec, addr / sec / 1024.0);
     echo_all();
 
-    delay(100);
     flashCommand(0, CMD_RESET);
-
     return false;
   }
 
