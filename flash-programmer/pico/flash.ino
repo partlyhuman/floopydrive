@@ -364,7 +364,12 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     // All subsequent address must lie within the start address plus the count.
     setControl(ROMCE);
 
-    // Optimize this tight loop by doing the entire 32 byte write in a single SPI transaction
+    // NOTE -- the following tight loop, writing the 32 byte buffer, is optimized at a low level
+    // It performs the same function as:
+    // for (int j = 0; j < wordsToWrite; j++, addr += 2, bufPtr += 2) {
+    //   flashCommand(addr, buf[bufPtr] << 8 | buf[bufPtr + 1]);
+    // }
+
     const uint8_t ROMCE_ROMWE = ROMCE & ROMWE;
     const uint8_t MCP_GPIOA = 0x12;
     const uint8_t MCP_GPIOB = 0x13;
@@ -372,17 +377,21 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     SPI.beginTransaction(mcpAddr0.mySPISettings);
     for (int j = 0; j < wordsToWrite; j++, addr += 2, bufPtr += 2) {
 
-      uint32_t diff = addr ^ lastAddr;
+      // uint32_t diff = addr ^ lastAddr;
       // More expensive to do the test than to just send both bytes, and we know the lower bits of the address are changing
       // bool diffA = (diff & 0x000000ff) != 0;
       // if ((diff & 0x0000ff00) != 0) {
+
       // A0-A15
       mcpAddr0.writeMCP23017_noTransaction(addr & 0xff, (addr >> 8) & 0xff);
+
       // } else {
       //   // A0-A7 always change
       //   mcpAddr0.writeMCP23017_noTransaction_singlePort(0x12, addr & 0xff);
       // }
-      if ((diff & 0x00ff0000) != 0) {
+
+      // if ((diff & 0x00ff0000) != 0) {
+      if ((addr & 0xffff) == 0) {
         // A16-A21
         mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOA, addr >> 16);
       }
@@ -390,10 +399,9 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
 
       mcpData.writeMCP23017_noTransaction(buf[bufPtr + 1], buf[bufPtr]);
       mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE_ROMWE);
-      // 300 Mhz 1 clock = 3ns
-      // SHOULD BE 40NS
-      // asm volatile("nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop");
-      // asm volatile("nop\nnop\nnop\nnop\nnop\nnop");
+      // 40NS min holding down WE is required
+      // 13 cycles @300Mhz, 1 cycle @20Mhz (SPI clock)
+      // This is satisfied by SPI, no artificial delay needed
       mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE);
     }
     SPI.endTransaction();

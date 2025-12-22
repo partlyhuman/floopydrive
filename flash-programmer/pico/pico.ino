@@ -10,7 +10,6 @@
 #include <Adafruit_TinyUSB.h>
 #include <Adafruit_NeoPixel.h>
 #include <LittleFS.h>
-#include <hardware/clocks.h>
 #include "MCP23S17.h"  // Modified from MCP23017_WE library https://docs.arduino.cc/libraries/mcp23017_we/
 #include "generated.h"
 

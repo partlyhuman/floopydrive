@@ -784,11 +784,11 @@ void MCP23017::writeMCP23017_noTransaction(uint8_t valA, uint8_t valB) {
 
 void MCP23017::writeMCP23017_noTransaction_singlePort(uint8_t reg, uint8_t val) {
     // _spi->beginTransaction(mySPISettings);
-    digitalWrite(csPin, LOW);
+    digitalWriteFast(csPin, LOW);
     uint16_t transBytes = ((SPI_Address<<1) << 8 | reg);
     _spi->transfer16(transBytes);
     _spi->transfer(val);
-    digitalWrite(csPin, HIGH);
+    digitalWriteFast(csPin, HIGH);
     // _spi->endTransaction();
 }
 
