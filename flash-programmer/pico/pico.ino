@@ -51,7 +51,7 @@ Adafruit_USBD_WebUSB usb_web;
 #define SPI_OC0 10 * MHZ
 #define SPI_OC1_TESTED 12 * MHZ
 #define SPI_OC2_UNSTABLE 24 * MHZ
-SPISettings mcpSettings = SPISettings();
+SPISettings mcpSettings = SPISettings(SPI_OC1_TESTED, MSBFIRST, SPI_MODE0);
 MCP23S17 mcpData = MCP23S17(MCP_CS_DATA, MCP_NO_RESET_PIN, MCP_ADDR_DATA);   //Data IO, D0-D15, Address 0x0
 MCP23S17 mcpAddr0 = MCP23S17(MCP_CS_ADDR0, MCP_NO_RESET_PIN, MCP_ADDR_ADDR0);  //Address IO, A0-A15, Address 0x1
 MCP23S17 mcpAddr1 = MCP23S17(MCP_CS_ADDR1, MCP_NO_RESET_PIN, MCP_ADDR_ADDR1);  //Address and control IO, A16-A21, OE, RAMCE, RAMWE, ROMCE, ROMWE, RESET, Address 0x2

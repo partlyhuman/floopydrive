@@ -8,7 +8,7 @@ static int bootErrors = 0;
 
 void onSuccess(bool echoOk = true) {
   if (echoOk) echo_ok();
-  busIdle();
+  setControl(IDLE);
   ledColor(0);
 }
 
@@ -244,17 +244,23 @@ void loop_programming() {
     }
   }
 
-  else if (buf[0] == 'S' && buf[1] == 'P' && buf[2] == 'I') {
-    // MODIFY SPI CLOCK
+  else if (buf[0] == 'O' && buf[1] == 'C') {
+    // MODIFY SPI OVERCLOCK
     long newSpiClock;
-    if (sscanf((char *)buf, "SPI%ld\r", &newSpiClock) && newSpiClock > MHZ) {
-      mcpSetSpiClock(newSpiClock);
-      sprintf(S, "Set SPI clock speed to %d MHz\r\n", newSpiClock / MHZ);
-      echo_all();
-      if (newSpiClock >= SPI_OC2_UNSTABLE) {
-        echo_all("WARNING: This clock speed is beyond tested stable speeds.\r\n");
-        echo_all("if you experience issues, disconnect your Floopy Drive.\r\n");
-      }
+    if (buf[2] == '+') {
+      newSpiClock = SPI_OC2_UNSTABLE;
+    } else if (buf[2] == '-') {
+      newSpiClock = SPI_OC0;
+    } else if (sscanf((char *)buf, "OC%ld\r", &newSpiClock) && newSpiClock > MHZ) {
+    } else {
+      newSpiClock = SPI_OC1_TESTED;
+    }
+    mcpSetSpiClock(newSpiClock);
+    sprintf(S, "Set SPI clock speed to %d MHz\r\n", newSpiClock / MHZ);
+    echo_all();
+    if (newSpiClock >= SPI_OC2_UNSTABLE) {
+      echo_all("WARNING: This clock speed is beyond tested stable speeds.\r\n");
+      echo_all("if you experience issues, disconnect your Floopy Drive.\r\n");
     }
   }
 

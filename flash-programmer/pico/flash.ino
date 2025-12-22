@@ -17,7 +17,7 @@ inline void busWrite() {
 }
 
 inline void busIdle() {
-  setControl(IDLE);
+  setControl(ROMCE);
   databusWriteMode();
 }
 
@@ -143,7 +143,7 @@ bool flashStatusCheck(bool clearIfError = true, bool echo = true) {
 
 void flashWaitUntilDone() {
   do {
-    // delayMicroseconds(us);
+    delayMicroseconds(1);
     flashReadStatus();
   } while (!SR(7));
 }
@@ -306,18 +306,18 @@ void flashDump(uint32_t starting = 0, uint32_t upto = FLASH_SIZE) {
 }
 
 inline void writeMCP23017_noTransaction(uint8_t csPin, uint16_t transBytes, uint8_t valA, uint8_t valB) {
-    digitalWriteFast(csPin, LOW);
-    SPI.transfer16(transBytes);
-    SPI.transfer(valA);
-    SPI.transfer(valB);
-    digitalWriteFast(csPin, HIGH);
+  digitalWriteFast(csPin, LOW);
+  SPI.transfer16(transBytes);
+  SPI.transfer(valA);
+  SPI.transfer(valB);
+  digitalWriteFast(csPin, HIGH);
 }
 
 inline void writeMCP23017_noTransaction_singlePort(uint8_t csPin, uint16_t transBytes, uint8_t val) {
-    digitalWriteFast(csPin, LOW);
-    SPI.transfer16(transBytes);
-    SPI.transfer(val);
-    digitalWriteFast(csPin, HIGH);
+  digitalWriteFast(csPin, LOW);
+  SPI.transfer16(transBytes);
+  SPI.transfer(val);
+  digitalWriteFast(csPin, HIGH);
 }
 
 // Returns whether programming should continue
@@ -391,31 +391,51 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
 
     SPI.beginTransaction(mcpSettings);
     for (int j = 0; j < wordsToWrite; j++, addr += 2, bufPtr += 2) {
+
       // A0-A15
       const uint16_t MCP_REG_ADDR0_AB = ((MCP_ADDR_ADDR0 << 9) | MCP_GPIOA);
-      writeMCP23017_noTransaction(MCP_CS_ADDR0, MCP_REG_ADDR0_AB, addr & 0xff, (addr >> 8) & 0xff);
+      writeMCP23017_noTransaction(MCP_CS_ADDR0, MCP_REG_ADDR0_AB,
+                                  addr & 0xff, (addr >> 8) & 0xff);
 
       // If the last 15 digits are 0, the 16th digit rolled over
       // This replaces a slower test on the XOR of the previous address - we know we're going up by 2s
-      if ((addr & 0xffff) == 0) {
+      if ((addr & 0xfffe) == 0) {
         // A16-A21
         const uint16_t MCP_REG_ADDR1_A = ((MCP_ADDR_ADDR1 << 9) | MCP_GPIOA);
-        writeMCP23017_noTransaction_singlePort(MCP_CS_ADDR1, MCP_REG_ADDR1_A, addr >> 16);
+        writeMCP23017_noTransaction_singlePort(MCP_CS_ADDR1, MCP_REG_ADDR1_A,
+                                               addr >> 16);
       }
       lastAddr = addr;
 
+      // DATA (2 bytes)
       const uint16_t MCP_REG_DATA_AB = ((MCP_ADDR_DATA << 9) | MCP_GPIOA);
-      writeMCP23017_noTransaction(MCP_CS_DATA, MCP_REG_DATA_AB, buf[bufPtr + 1], buf[bufPtr]);
+      writeMCP23017_noTransaction(MCP_CS_DATA, MCP_REG_DATA_AB,
+                                  buf[bufPtr + 1], buf[bufPtr]);
 
+      // WE LOW
       const uint16_t MCP_REG_ADDR1_B = ((MCP_ADDR_ADDR1 << 9) | MCP_GPIOB);
-      writeMCP23017_noTransaction_singlePort(MCP_CS_ADDR1, MCP_REG_ADDR1_B, ROMCE_ROMWE);
-      
+      writeMCP23017_noTransaction_singlePort(MCP_CS_ADDR1, MCP_REG_ADDR1_B,
+                                             ROMCE_ROMWE);
+
       // 40ns / 4.0e-8s minimum holding down WE is required
       // 13 cycles @300Mhz (3.3e-9s), <1 cycle @12Mhz (8.3e-8s) (SPI clock)
       // If you OC to 24Mhz (4.1e-8s) this is dangerously close to one clock cycle
-      while(spi_is_busy(spi0));
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
+      NOP;
 
-      writeMCP23017_noTransaction_singlePort(MCP_CS_ADDR1, MCP_REG_ADDR1_B, ROMCE);
+      // WE HIGH
+      writeMCP23017_noTransaction_singlePort(MCP_CS_ADDR1, MCP_REG_ADDR1_B,
+                                             ROMCE);
     }
     SPI.endTransaction();
     // setControl(IDLE); // already part of flashCommand
@@ -428,6 +448,7 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     if (atBoundary) {
       flashWaitUntilDone();
       flashCommand(bankBoundary, CMD_STATUS_CLR);
+      while (spi_is_busy(spi0)) {}
     }
   }
 

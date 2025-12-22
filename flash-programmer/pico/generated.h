@@ -1,2 +1,2 @@
-#define GIT_COMMIT "246ec47"
+#define GIT_COMMIT "fa8adcf"
 
