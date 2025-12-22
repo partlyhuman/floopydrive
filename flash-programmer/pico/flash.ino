@@ -422,14 +422,33 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     // Subsequent writes provide additional device address and data, depending on the count.
     // All subsequent address must lie within the start address plus the count.
     setControl(ROMCE);
+
+    const uint8_t ROMCE_ROMWE = ROMCE & ROMWE;
+    SPI.beginTransaction(mcpAddr0.mySPISettings);
     for (int j = 0; j < wordsToWrite; j++, addr += 2, bufPtr += 2) {
-      setAddress(addr);
-      mcpData.setPort(buf[bufPtr+1], buf[bufPtr]);
-      setControl(ROMCE & ROMWE);
-      setControl(ROMCE);
-      // uint16_t word = buf[bufPtr] << 8 | buf[bufPtr + 1];
-      // flashCommand(addr, word);
+
+      uint32_t diff = addr ^ lastAddr;
+      // More expensive to do the test than to just send both bytes, and we know the lower bits of the address are changing
+      // bool diffA = (diff & 0x000000ff) != 0;
+      // if ((diff & 0x0000ff00) != 0) {
+      // A0-A15
+      mcpAddr0.writeMCP23017_noTransaction(addr & 0xff, (addr >> 8) & 0xff);
+      // } else {
+      //   // A0-A7 always change
+      //   mcpAddr0.writeMCP23017_noTransaction_singlePort(0x12, addr & 0xff);
+      // }
+      if ((diff & 0x00ff0000) != 0) {
+        // A16-A21
+        mcpAddr1.writeMCP23017_noTransaction_singlePort(0x12, addr >> 16);
+      }
+      lastAddr = addr;
+
+      mcpData.writeMCP23017_noTransaction(buf[bufPtr + 1], buf[bufPtr]);
+      mcpAddr1.writeMCP23017_noTransaction_singlePort(0x13, ROMCE_ROMWE);
+      asm volatile("nop\nnop\nnop\nnop\nnop\nnop\nnop");
+      mcpAddr1.writeMCP23017_noTransaction_singlePort(0x13, ROMCE);
     }
+    SPI.endTransaction();
     // setControl(IDLE); // already part of flashCommand
 
     // After the final buffer data is written, write confirm (DOH) must be written.

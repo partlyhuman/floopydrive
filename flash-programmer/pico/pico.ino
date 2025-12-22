@@ -15,14 +15,16 @@
 #include "generated.h"
 
 #define HW_REVISION 8
-// The MCP23S17 is rated for 10MHz, overclock it - 24Mhz yields highest speeds
+// The MCP23S17 is rated for 10MHz, overclock it
+// 24Mhz yields highest speeds but was too fast for 1/10 Floopy Drives 
+// 18-20Mhz is safer, lower speed
 #define SPI_SPEED 20 * MHZ
 
 #undef DEBUG_LED
 
 // Delays one clock cycle or 7ns @ 133MhZ = 0.000000007518797sec = 7.518797ns
-#define NOP 
-// #define NOP __asm__("nop\n\t")
+// #define NOP 
+#define NOP __asm__("nop\n\t")
 // 4.17ns @ 240Mhz, double to 8.33ns so we don't have to change number of NOPs
 // #define NOP __asm__("nop\nnop\nnop\nnop\n")
 #define HALT while (true)
