@@ -7,26 +7,25 @@
 //   USB Stack: Adafruit TinyUSB
 
 #include <SPI.h>
-#include <MCP23S17.h>  // MCP23017_WE library https://docs.arduino.cc/libraries/mcp23017_we/
 #include <Adafruit_TinyUSB.h>
 #include <Adafruit_NeoPixel.h>
 #include <LittleFS.h>
 #include <hardware/clocks.h>
+#include "MCP23S17.h"  // Modified from MCP23017_WE library https://docs.arduino.cc/libraries/mcp23017_we/
 #include "generated.h"
 
 #define HW_REVISION 8
 // The MCP23S17 is rated for 10MHz, overclock it
 // 24Mhz yields highest speeds but was too fast for 1/10 Floopy Drives 
-// 18-20Mhz is safer, lower speed
-#define SPI_SPEED 20 * MHZ
+#define SPI_OC_SAFE 20 * MHZ
+#define SPI_OC_MAX 24 * MHZ
+#define SPI_SPEED SPI_OC_SAFE
 
 #undef DEBUG_LED
 
 // Delays one clock cycle or 7ns @ 133MhZ = 0.000000007518797sec = 7.518797ns
 // #define NOP 
-#define NOP __asm__("nop\n\t")
-// 4.17ns @ 240Mhz, double to 8.33ns so we don't have to change number of NOPs
-// #define NOP __asm__("nop\nnop\nnop\nnop\n")
+#define NOP asm volatile("nop")
 #define HALT while (true)
 
 #define ADDRBITS 22

@@ -106,9 +106,9 @@ void flashReadStatus() {
 }
 
 // returns TRUE if OK
-bool flashStatusCheck(bool clearIfError = true, bool echo = true, bool useExistingStatus = false) {
+bool flashStatusCheck(bool clearIfError = true, bool echo = true) {
   bool ok = true;
-  if (!useExistingStatus) flashCommand(lastAddr, 0x70);
+  flashCommand(lastAddr, 0x70);
   flashReadStatus();
   if (!SR(7)) {
     if (echo) echo_all("STATUS busy\r\n");
@@ -178,7 +178,7 @@ void flashEraseBank(int bank) {
     }
   }
 
-  if (!flashStatusCheck(true, true, true)) {
+  if (!flashStatusCheck()) {
     echo_all("Bank erase error\r");
   }
 
@@ -305,59 +305,6 @@ void flashDump(uint32_t starting = 0, uint32_t upto = FLASH_SIZE) {
   usb_web.flush();
 }
 
-// Should only be used to start a multibyte write, diff command than general status checking
-// Technically we could utilize both write buffers and continue to write even if busy reported
-// Exponential backoff
-bool flashSetupMultiByteWrite(uint32_t addr, uint32_t timeout_sec = 60) {
-  uint32_t statusStart = millis();
-  uint32_t delayUs = 2;
-  while (true) {
-    // First, multi word/byte write setup (E8H) is written with
-    // the write address. At this point, the device
-    // automatically outputs extended status register data
-    // (XSR) when read
-    flashCommand(addr, 0xe8);
-    flashReadStatus();
-
-    // If extended
-    // status register bit XSR.7 is 0, no Multi Word/Byte
-    // Write command is available and multi word/byte write
-    // setup which just has been written is ignored. To retry,
-    // continue monitoring XSR.7 by writing multi word/byte
-    // write setup with write address until XSR.7 transitions
-    // to 1. When XSR.7 transitions to 1, the device is ready
-    // for loading the data to the buffer.
-    if (SR(7)) {
-      return true;
-    }
-
-    if (millis() - statusStart > timeout_sec * 1000) {
-      // Only fall through here if timeout
-      if (SR(1) && SR(4)) {
-        sprintf(S, "Block lock error @ %06x\r\n", lastAddr);
-        echo_all();
-      }
-      if (SR(3) && SR(4)) {
-        sprintf(S, "Undervoltage error @ %06x\r\n", lastAddr);
-        echo_all();
-      }
-      if (SR(4) || SR(5)) {
-        sprintf(S, "Unable to multibyte write @ %06x\r\n", lastAddr);
-        echo_all();
-      }
-
-      sprintf(S, "\r\nTIMEOUT STATUS=%x\r\n", SRD);
-      echo_all();
-      // Done retrying
-      return false;
-    } else {
-      // Retry, exponential backoff
-      flashCommand(lastAddr, CMD_STATUS_CLR);
-      delayMicroseconds(delayUs *= 2);
-    }
-  }
-}
-
 // Returns whether programming should continue
 bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expectedBytes) {
   if ((bufLen % 2) == 1) {
@@ -405,14 +352,8 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     }
     int wordsToWrite = bytesToWrite / 2;
 
-    if (!flashSetupMultiByteWrite(addr)) {
-      flashCommand(lastAddr, CMD_STATUS_CLR);
-      delay(250);
-      flashClearLocks();
-      delay(1000);
-      echo_all("\rRetrying...\r");
-      continue;
-    }
+    flashCommand(addr, 0xe8);
+    flashWaitUntilDone();
 
     // XSR.7 == 1 now, ready for write
     // A word/byte count (N)-1 is written with write address.
@@ -423,7 +364,11 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     // All subsequent address must lie within the start address plus the count.
     setControl(ROMCE);
 
+    // Optimize this tight loop by doing the entire 32 byte write in a single SPI transaction
     const uint8_t ROMCE_ROMWE = ROMCE & ROMWE;
+    const uint8_t MCP_GPIOA = 0x12;
+    const uint8_t MCP_GPIOB = 0x13;
+
     SPI.beginTransaction(mcpAddr0.mySPISettings);
     for (int j = 0; j < wordsToWrite; j++, addr += 2, bufPtr += 2) {
 
@@ -439,14 +384,17 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
       // }
       if ((diff & 0x00ff0000) != 0) {
         // A16-A21
-        mcpAddr1.writeMCP23017_noTransaction_singlePort(0x12, addr >> 16);
+        mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOA, addr >> 16);
       }
       lastAddr = addr;
 
       mcpData.writeMCP23017_noTransaction(buf[bufPtr + 1], buf[bufPtr]);
-      mcpAddr1.writeMCP23017_noTransaction_singlePort(0x13, ROMCE_ROMWE);
-      asm volatile("nop\nnop\nnop\nnop\nnop\nnop\nnop");
-      mcpAddr1.writeMCP23017_noTransaction_singlePort(0x13, ROMCE);
+      mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE_ROMWE);
+      // 300 Mhz 1 clock = 3ns
+      // SHOULD BE 40NS
+      // asm volatile("nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop");
+      // asm volatile("nop\nnop\nnop\nnop\nnop\nnop");
+      mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE);
     }
     SPI.endTransaction();
     // setControl(IDLE); // already part of flashCommand
