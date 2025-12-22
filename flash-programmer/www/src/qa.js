@@ -129,6 +129,29 @@ $('button.qa-program-both').addEventListener('click', async ({target}) => {
     await programSram(expectedSramBuffer);
 });
 
+$('button.qa-program-flash-multi').addEventListener('click', async ({target}) => {
+    if (!expectedFlashBuffer) {
+        console.error('Set expected file first');
+        return;
+    }
+    const MAX = 20;
+    await runTest('Flashing repeatedly', (async () => {
+        for (let i = 0; i < MAX; i++) {
+            // await commandWithProgress(`E\r`, 'Erasing Flash');
+            // await sleep(1000);
+            log(`\nFlash ${i+1}/${MAX}\n`);
+            await programFlash(expectedFlashBuffer);
+            await sleep(5000);
+        }
+        log('\nVerifying data...\n');
+        return assertEqual(
+            await download(expectedFlashBuffer.byteLength, `D${expectedFlashBuffer.byteLength}\r`),
+            expectedFlashBuffer
+        );
+    })(), target);
+});
+
+
 /**
  * Test 3 - Go program it with a game, test on console. Come back. Now verify its contents are what you expect.
  * Running on console is a strong signal that it's okay. This is stronger.
