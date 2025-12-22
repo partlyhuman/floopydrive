@@ -17,7 +17,7 @@ inline void busWrite() {
 }
 
 inline void busIdle() {
-  setControl(ROMCE);
+  setControl(IDLE);
   databusWriteMode();
 }
 
@@ -346,7 +346,6 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
   // Multi-word write can write up to 32 bytes / 16 words
   const uint32_t bankBoundary = FLASH_BANK_SIZE;
   const size_t MAX_MULTIBYTE_WRITE = 32;
-  bool atBoundary = false;
   uint32_t currentBank = zeroWithBank(addr);
 
   // Do however many multibyte writes necessary to empty the buffer
@@ -362,13 +361,18 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     int bytesToWrite = MIN(bufLen - bufPtr, MAX_MULTIBYTE_WRITE);
     // Don't allow multibyte writes to cross banks
     if (addr < bankBoundary && addr + bytesToWrite >= bankBoundary) {
-      atBoundary = true;
       bytesToWrite = MIN(bankBoundary - addr, MAX_MULTIBYTE_WRITE);
     }
     int wordsToWrite = bytesToWrite / 2;
 
-    flashCommand(addr, 0xe8);
-    flashWaitUntilDone();
+    // To retry,
+    // continue monitoring XSR.7 by writing multi word/byte
+    // write setup with write address until XSR.7 transitions
+    // to 1.
+    do {
+      flashCommand(addr, 0xe8);
+      flashReadStatus();
+    } while (!SR(7));
 
     // XSR.7 == 1 now, ready for write
     // A word/byte count (N)-1 is written with write address.
@@ -444,12 +448,6 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     // This initiates WSM to begin copying the buffer data to the Flash Array.
     // Use the bank we started with not the bank we ended with
     flashCommand(lastAddr, 0xd0);
-
-    if (atBoundary) {
-      flashWaitUntilDone();
-      flashCommand(bankBoundary, CMD_STATUS_CLR);
-      while (spi_is_busy(spi0)) {}
-    }
   }
 
   // Buffer empty, return to main loop, or finish up
