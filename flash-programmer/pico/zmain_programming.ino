@@ -234,12 +234,27 @@ void loop_programming() {
   }
 
   else if (buf[0] == 'N') {
+    // SET NICKNAME
     if (sscanf((char *)buf, "N%[^\r]\r", S) && strlen(S) > 0) {
       setNickname(S);
       onSuccess();
     } else {
       setNickname(NULL);
       onSuccess();
+    }
+  }
+
+  else if (buf[0] == 'S' && buf[1] == 'P' && buf[2] == 'I') {
+    // MODIFY SPI CLOCK
+    long newSpiClock;
+    if (sscanf((char *)buf, "SPI%ld\r", &newSpiClock) && newSpiClock > MHZ) {
+      mcpSetSpiClock(newSpiClock);
+      sprintf(S, "Set SPI clock speed to %d MHz\r\n", newSpiClock / MHZ);
+      echo_all();
+      if (newSpiClock >= SPI_OC2_UNSTABLE) {
+        echo_all("WARNING: This clock speed is beyond tested stable speeds.\r\n");
+        echo_all("if you experience issues, disconnect your Floopy Drive.\r\n");
+      }
     }
   }
 
@@ -300,9 +315,7 @@ void setup_programming() {
   if (!mcpAddr0.Init()) bootError("mcpAddr0 fail");
   if (!mcpAddr1.Init()) bootError("mcpAddr1 fail");
   if (!mcpData.Init()) bootError("mcpData fail");
-  mcpAddr0.setSPIClockSpeed(SPI_SPEED);
-  mcpAddr1.setSPIClockSpeed(SPI_SPEED);
-  mcpData.setSPIClockSpeed(SPI_SPEED);
+  mcpSetSpiClock(SPI_OC1_TESTED);
 
   ioWriteMode(&mcpData);
   ioWriteMode(&mcpAddr0);

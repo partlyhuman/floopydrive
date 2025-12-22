@@ -10,15 +10,10 @@
 #include <Adafruit_TinyUSB.h>
 #include <Adafruit_NeoPixel.h>
 #include <LittleFS.h>
-#include "MCP23S17.h"  // Modified from MCP23017_WE library https://docs.arduino.cc/libraries/mcp23017_we/
+#include <MCP23S17.h>  // MCP23017_WE library https://docs.arduino.cc/libraries/mcp23017_we/
 #include "generated.h"
 
 #define HW_REVISION 8
-// The MCP23S17 is rated for 10MHz, overclock it
-// 24Mhz yields highest speeds but was too fast for 1/10 Floopy Drives 
-#define SPI_OC_SAFE 20 * MHZ
-#define SPI_OC_MAX 24 * MHZ
-#define SPI_SPEED SPI_OC_SAFE
 
 #undef DEBUG_LED
 
@@ -45,9 +40,28 @@ Adafruit_USBD_WebUSB usb_web;
 #define MCP_NO_RESET_PIN 100
 // SPI addresses for MCP23017 are: 0 1 0 0 A2 A1 A0
 // Note we almost certainly don't need differing addresses any more since REV6 gave each a unique CE, but no harm keeping it
-MCP23S17 mcpData = MCP23S17(5, MCP_NO_RESET_PIN, 0b0100000);   //Data IO, D0-D15, Address 0x0
-MCP23S17 mcpAddr0 = MCP23S17(6, MCP_NO_RESET_PIN, 0b0100001);  //Address IO, A0-A15, Address 0x1
-MCP23S17 mcpAddr1 = MCP23S17(7, MCP_NO_RESET_PIN, 0b0100010);  //Address and control IO, A16-A21, OE, RAMCE, RAMWE, ROMCE, ROMWE, RESET, Address 0x2
+#define MCP_ADDR_DATA 32
+#define MCP_ADDR_ADDR0 33
+#define MCP_ADDR_ADDR1 34
+#define MCP_CS_DATA 5
+#define MCP_CS_ADDR0 6
+#define MCP_CS_ADDR1 7
+// The MCP23S17 is rated for 10MHz, overclock it
+// 24Mhz yields highest speeds but was too fast for 1/10 Floopy Drives 
+#define SPI_OC0 10 * MHZ
+#define SPI_OC1_TESTED 12 * MHZ
+#define SPI_OC2_UNSTABLE 24 * MHZ
+SPISettings mcpSettings = SPISettings();
+MCP23S17 mcpData = MCP23S17(MCP_CS_DATA, MCP_NO_RESET_PIN, MCP_ADDR_DATA);   //Data IO, D0-D15, Address 0x0
+MCP23S17 mcpAddr0 = MCP23S17(MCP_CS_ADDR0, MCP_NO_RESET_PIN, MCP_ADDR_ADDR0);  //Address IO, A0-A15, Address 0x1
+MCP23S17 mcpAddr1 = MCP23S17(MCP_CS_ADDR1, MCP_NO_RESET_PIN, MCP_ADDR_ADDR1);  //Address and control IO, A16-A21, OE, RAMCE, RAMWE, ROMCE, ROMWE, RESET, Address 0x2
+
+void mcpSetSpiClock(unsigned long clock) {
+  mcpSettings = SPISettings(clock, MSBFIRST, SPI_MODE0);
+  mcpAddr0.setSPIClockSpeed(clock);
+  mcpAddr1.setSPIClockSpeed(clock);
+  mcpData.setSPIClockSpeed(clock);
+}
 
 // sprintf buffer
 char S[USB_BUFSIZE];
