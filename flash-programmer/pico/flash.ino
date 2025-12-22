@@ -415,29 +415,18 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     }
 
     // XSR.7 == 1 now, ready for write
-
-    const uint8_t ROMCE_ROMWE = ROMCE & ROMWE;
-    const uint8_t MCP_GPIOA = 0x12;
-    const uint8_t MCP_GPIOB = 0x13;
-
-    SPI.beginTransaction(mcpAddr0.mySPISettings);
-
     // A word/byte count (N)-1 is written with write address.
-    // flashCommand(addr, wordsToWrite - 1);
-    mcpAddr1.writeMCP23017_noTransaction_singlePort(0x13, ROMCE);
-    mcpAddr0.writeMCP23017_noTransaction(addr & 0xff, (addr >> 8) & 0xff);
-    mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOA, addr >> 16);
-    mcpData.writeMCP23017_noTransaction(wordsToWrite - 1, 0);
-    mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE_ROMWE);
-    asm volatile("nop\nnop\nnop\nnop\nnop\nnop\nnop");
-    mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE);
-    lastAddr = addr;
+    flashCommand(addr, wordsToWrite - 1);
 
     // On the next write, device start address is written with buffer data.
     // Subsequent writes provide additional device address and data, depending on the count.
     // All subsequent address must lie within the start address plus the count.
-    // setControl(ROMCE);
+    setControl(ROMCE);
+
+    const uint8_t ROMCE_ROMWE = ROMCE & ROMWE;
+    SPI.beginTransaction(mcpAddr0.mySPISettings);
     for (int j = 0; j < wordsToWrite; j++, addr += 2, bufPtr += 2) {
+
       uint32_t diff = addr ^ lastAddr;
       // More expensive to do the test than to just send both bytes, and we know the lower bits of the address are changing
       // bool diffA = (diff & 0x000000ff) != 0;
@@ -450,28 +439,22 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
       // }
       if ((diff & 0x00ff0000) != 0) {
         // A16-A21
-        mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOA, addr >> 16);
+        mcpAddr1.writeMCP23017_noTransaction_singlePort(0x12, addr >> 16);
       }
       lastAddr = addr;
 
       mcpData.writeMCP23017_noTransaction(buf[bufPtr + 1], buf[bufPtr]);
-      mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE_ROMWE);
+      mcpAddr1.writeMCP23017_noTransaction_singlePort(0x13, ROMCE_ROMWE);
       asm volatile("nop\nnop\nnop\nnop\nnop\nnop\nnop");
-      mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE);
+      mcpAddr1.writeMCP23017_noTransaction_singlePort(0x13, ROMCE);
     }
+    SPI.endTransaction();
     // setControl(IDLE); // already part of flashCommand
 
     // After the final buffer data is written, write confirm (DOH) must be written.
     // This initiates WSM to begin copying the buffer data to the Flash Array.
     // Use the bank we started with not the bank we ended with
-    // flashCommand(lastAddr, 0xd0);
-    mcpData.writeMCP23017_noTransaction(0xd0, 0);
-    mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE_ROMWE);
-    asm volatile("nop\nnop\nnop\nnop\nnop\nnop\nnop");
-    mcpAddr1.writeMCP23017_noTransaction_singlePort(MCP_GPIOB, ROMCE);
-
-    SPI.endTransaction();
-
+    flashCommand(lastAddr, 0xd0);
 
     if (atBoundary) {
       flashWaitUntilDone();
