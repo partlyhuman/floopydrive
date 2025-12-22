@@ -106,9 +106,9 @@ void flashReadStatus() {
 }
 
 // returns TRUE if OK
-bool flashStatusCheck(bool clearIfError = true, bool echo = true) {
+bool flashStatusCheck(bool clearIfError = true, bool echo = true, bool useExistingStatus = false) {
   bool ok = true;
-  flashCommand(lastAddr, 0x70);
+  if (!useExistingStatus) flashCommand(lastAddr, 0x70);
   flashReadStatus();
   if (!SR(7)) {
     if (echo) echo_all("STATUS busy\r\n");
@@ -141,7 +141,7 @@ bool flashStatusCheck(bool clearIfError = true, bool echo = true) {
   return ok;
 }
 
-void flashWaitUntilIdle() {
+void flashWaitUntilDone() {
   do {
     // delayMicroseconds(us);
     flashReadStatus();
@@ -157,7 +157,7 @@ void flashEraseBank(int bank) {
 
   delayMicroseconds(100);
   flashCommand(bankAddress, 0x70);
-  flashWaitUntilIdle();
+  flashWaitUntilDone();
   delayMicroseconds(100);
 
   delayMicroseconds(100);
@@ -178,7 +178,7 @@ void flashEraseBank(int bank) {
     }
   }
 
-  if (!flashStatusCheck(bankAddress)) {
+  if (!flashStatusCheck(true, true, true)) {
     echo_all("Bank erase error\r");
   }
 
@@ -191,10 +191,10 @@ void flashEraseBank(int bank) {
   // }
 
   // clear status register
-  flashCommand(0, CMD_STATUS_CLR);
-  delayMicroseconds(100);
+  // flashCommand(0, CMD_STATUS_CLR);
+  // delayMicroseconds(100);
   // Read mode
-  flashCommand(0, 0xff);
+  flashCommand(0, CMD_RESET);
   delayMicroseconds(100);
 }
 
@@ -213,7 +213,7 @@ bool flashEraseBlock(uint32_t startAddr) {
 
   flashCommand(startAddr, 0x20);
   flashCommand(startAddr, 0xd0);
-  flashWaitUntilIdle();
+  flashWaitUntilDone();
 
   return flashStatusCheck();
 }
@@ -222,7 +222,7 @@ void flashClearLocks() {
   echo_all("Clearing lock bits...");
   flashCommand(0, 0x60);
   flashCommand(0, 0xd0);
-  flashWaitUntilIdle();
+  flashWaitUntilDone();
 
   if (flashStatusCheck()) {
     echo_all("Cleared\r");
@@ -333,15 +333,15 @@ bool flashSetupMultiByteWrite(uint32_t addr, uint32_t timeout_sec = 60) {
 
     if (millis() - statusStart > timeout_sec * 1000) {
       // Only fall through here if timeout
-      if (SR(1) == SR(4) == 1) {
+      if (SR(1) && SR(4)) {
         sprintf(S, "Block lock error @ %06x\r\n", lastAddr);
         echo_all();
       }
-      if (SR(3) == SR(4) == 1) {
+      if (SR(3) && SR(4)) {
         sprintf(S, "Undervoltage error @ %06x\r\n", lastAddr);
         echo_all();
       }
-      if (SR(4) == 1 || SR(5) == 1) {
+      if (SR(4) || SR(5)) {
         sprintf(S, "Unable to multibyte write @ %06x\r\n", lastAddr);
         echo_all();
       }
@@ -391,7 +391,7 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
   for (int bufPtr = 0; bufPtr < bufLen;) {
 
     // Skip blocks of 0xff *between* multibyte writes only, assuming flash has been erased
-    if (bufPtr + 1 < bufLen && buf[bufPtr] == buf[bufPtr + 1] == 0xff) {
+    if (bufPtr + 1 < bufLen && buf[bufPtr] == 0xff && buf[bufPtr + 1] == 0xff) {
       bufPtr += 2;
       addr += 2;
       continue;
@@ -421,10 +421,16 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     // On the next write, device start address is written with buffer data.
     // Subsequent writes provide additional device address and data, depending on the count.
     // All subsequent address must lie within the start address plus the count.
+    setControl(ROMCE);
     for (int j = 0; j < wordsToWrite; j++, addr += 2, bufPtr += 2) {
-      uint16_t word = buf[bufPtr] << 8 | buf[bufPtr + 1];
-      flashCommand(addr, word);
+      setAddress(addr);
+      mcpData.setPort(buf[bufPtr+1], buf[bufPtr]);
+      setControl(ROMCE & ROMWE);
+      setControl(ROMCE);
+      // uint16_t word = buf[bufPtr] << 8 | buf[bufPtr + 1];
+      // flashCommand(addr, word);
     }
+    // setControl(IDLE); // already part of flashCommand
 
     // After the final buffer data is written, write confirm (DOH) must be written.
     // This initiates WSM to begin copying the buffer data to the Flash Array.
@@ -432,7 +438,7 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     flashCommand(lastAddr, 0xd0);
 
     if (atBoundary) {
-      flashWaitUntilIdle();
+      flashWaitUntilDone();
       flashCommand(bankBoundary, CMD_STATUS_CLR);
     }
   }
@@ -440,7 +446,7 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
   // Buffer empty, return to main loop, or finish up
   if (addr >= expectedBytes) {
     echo_all("\rFinishing...\r");
-    flashWaitUntilIdle();
+    flashWaitUntilDone();
     flashCommand(lastAddr, CMD_RESET);
 
     double sec = (millis() - stopwatch) / 1000.0;

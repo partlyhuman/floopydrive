@@ -11,17 +11,20 @@
 #include <Adafruit_TinyUSB.h>
 #include <Adafruit_NeoPixel.h>
 #include <LittleFS.h>
+#include <hardware/clocks.h>
 #include "generated.h"
 
 #define HW_REVISION 8
-// The MCP23S17 is rated for 10MHz, overclock it
-#define SPI_SPEED 24 * 1000 * 1000
+// The MCP23S17 is rated for 10MHz, overclock it - 24Mhz yields highest speeds
+#define SPI_SPEED 20 * MHZ
+
 #undef DEBUG_LED
 
 // Delays one clock cycle or 7ns @ 133MhZ = 0.000000007518797sec = 7.518797ns
+#define NOP 
 // #define NOP __asm__("nop\n\t")
 // 4.17ns @ 240Mhz, double to 8.33ns so we don't have to change number of NOPs
-#define NOP __asm__("nop\nnop\n")
+// #define NOP __asm__("nop\nnop\nnop\nnop\n")
 #define HALT while (true)
 
 #define ADDRBITS 22
@@ -55,7 +58,7 @@ unsigned long stopwatch;
 uint16_t SRD;
 #define SR(n) bitRead(SRD, n)
 
-#define RED  0xFF0000
+#define RED 0xFF0000
 #define BLUE 0x0000FF
 Adafruit_NeoPixel led(1, 16, NEO_RGB);
 
@@ -109,19 +112,18 @@ static uint32_t lastAddr = 0;
 inline void setAddress(uint32_t addr) {
   uint32_t diff = addr ^ lastAddr;
 
-  // A0-A7
-  if ((diff & 0x000000ff) != 0) {
+  bool diffA = (diff & 0x000000ff) != 0;
+  bool diffB = (diff & 0x0000ff00) != 0;
+  if (diffA && diffB) {
+    // A0-A15
+    mcpAddr0.setPort(addr & 0xff, (addr >> 8) & 0xff);
+  } else if (diffA) {
+    // A0-A7
     mcpAddr0.setPort(addr & 0xff, A);
-  }
-  // A8-A15
-  if ((diff & 0x0000ff00) != 0) {
+  } else if (diffB) {
+    // A8-A15
     mcpAddr0.setPort((addr >> 8) & 0xff, B);
   }
-
-  // A0-A15
-  // if ((diff & 0x0000ffff) != 0) {
-  //   mcpAddr0.setPort(addr & 0xff, (addr >> 8) & 0xff);
-  // }
 
   // A16-A21
   if ((diff & 0x00ff0000) != 0) {
