@@ -320,6 +320,9 @@ inline void writeMCP23017_noTransaction_singlePort(uint8_t csPin, uint16_t trans
   digitalWriteFast(csPin, HIGH);
 }
 
+    static int debug_msw_start_retries = 0;
+
+
 // Returns whether programming should continue
 bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expectedBytes) {
   if ((bufLen % 2) == 1) {
@@ -365,14 +368,13 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     }
     int wordsToWrite = bytesToWrite / 2;
 
-    // To retry,
-    // continue monitoring XSR.7 by writing multi word/byte
-    // write setup with write address until XSR.7 transitions
-    // to 1.
-    do {
+    while (true) {
       flashCommand(addr, 0xe8);
       flashReadStatus();
-    } while (!SR(7));
+      if (SR(7)) { break; }
+      debug_msw_start_retries++;
+      delayMicroseconds(250);
+    }
 
     // XSR.7 == 1 now, ready for write
     // A word/byte count (N)-1 is written with write address.
@@ -455,6 +457,9 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     echo_all("\rFinishing...\r");
     flashWaitUntilDone();
     flashCommand(lastAddr, CMD_RESET);
+
+    sprintf(S, "\r\nMSW retries=%d\r\n", debug_msw_start_retries);
+    echo_all();
 
     double sec = (millis() - stopwatch) / 1000.0;
     sprintf(S, "\r\nWrote %d bytes in %0.2f sec (%0.1f KB/s)\r\n", addr, sec, addr / sec / 1024.0);
