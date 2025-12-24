@@ -210,7 +210,7 @@ export async function disconnect() {
     await floopy.disconnect();
     setStatus('Not connected');
     $connectButton.classList.add('default');
-    floopy = null;
+    window.floopy = floopy = null;
 }
 
 $connectButton?.addEventListener('click', async () => {
@@ -218,7 +218,7 @@ $connectButton?.addEventListener('click', async () => {
         await disconnect();
     } else {
         try {
-            floopy = await Serial.requestPort();
+            window.floopy = floopy = await Serial.requestPort();
             await connect();
         } catch (error) {
             showError(ERROR_CONNECT).then();
@@ -239,7 +239,7 @@ async function usbInit() {
         setStatus(`Floopy Drive not found. Connect drive and press the Connect button when notification appears.`);
     } else {
         setStatus('Connecting...');
-        floopy = ports[0];
+        window.floopy = floopy = ports[0];
         await connect();
     }
 }
