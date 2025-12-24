@@ -305,6 +305,7 @@ void flashDump(uint32_t starting = 0, uint32_t upto = FLASH_SIZE) {
   usb_web.flush();
 }
 
+// Modified from MCP23017::writeMCP23017 for low level control (FW2 speed optimizations)
 inline void writeMCP23017_noTransaction(uint8_t csPin, uint16_t transBytes, uint8_t valA, uint8_t valB) {
   digitalWriteFast(csPin, LOW);
   SPI.transfer16(transBytes);
@@ -313,6 +314,7 @@ inline void writeMCP23017_noTransaction(uint8_t csPin, uint16_t transBytes, uint
   digitalWriteFast(csPin, HIGH);
 }
 
+// Modified from MCP23017::writeMCP23017 for low level control (FW2 speed optimizations)
 inline void writeMCP23017_noTransaction_singlePort(uint8_t csPin, uint16_t transBytes, uint8_t val) {
   digitalWriteFast(csPin, LOW);
   SPI.transfer16(transBytes);
@@ -323,9 +325,10 @@ inline void writeMCP23017_noTransaction_singlePort(uint8_t csPin, uint16_t trans
 
 static int flashSetupMultiByteWriteRetries = 0;
 
-// Should only be used to start a multibyte write, diff command than general status checking
-// Technically we could utilize both write buffers and continue to write even if busy reported
-// Exponential backoff
+// Should only be used to start a multibyte write, not for general status check
+// Technically we could utilize both write buffers and continue to write even if busy reported,
+// but this happens almost never, so would not be worth handling
+// (Never means ~5% chance of occurring even once during a 3MB flash, usually during the bank switch)
 bool flashSetupMultiByteWrite(uint32_t addr, uint32_t timeoutMs = 5000) {
   uint32_t statusStart = millis();
   uint32_t delayUs = 10;
