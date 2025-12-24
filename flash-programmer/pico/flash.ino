@@ -320,8 +320,64 @@ inline void writeMCP23017_noTransaction_singlePort(uint8_t csPin, uint16_t trans
   digitalWriteFast(csPin, HIGH);
 }
 
-    static int debug_msw_start_retries = 0;
 
+static int flashSetupMultiByteWriteRetries = 0;
+
+// Should only be used to start a multibyte write, diff command than general status checking
+// Technically we could utilize both write buffers and continue to write even if busy reported
+// Exponential backoff
+bool flashSetupMultiByteWrite(uint32_t addr, uint32_t timeoutMs = 5000) {
+  uint32_t statusStart = millis();
+  uint32_t delayUs = 10;
+
+  while (true) {
+    // First, multi word/byte write setup (E8H) is written with
+    // the write address. At this point, the device
+    // automatically outputs extended status register data
+    // (XSR) when read
+    flashCommand(addr, 0xe8);
+    flashReadStatus();
+
+    // If extended
+    // status register bit XSR.7 is 0, no Multi Word/Byte
+    // Write command is available and multi word/byte write
+    // setup which just has been written is ignored. To retry,
+    // continue monitoring XSR.7 by writing multi word/byte
+    // write setup with write address until XSR.7 transitions
+    // to 1. When XSR.7 transitions to 1, the device is ready
+    // for loading the data to the buffer.
+    if (SR(7)) {
+      return true;
+    }
+
+    if (millis() - statusStart > timeoutMs) {
+      // Only fall through here if timeout
+      if (SR(1) == SR(4) == 1) {
+        sprintf(S, "Block lock error @ %06x\r\n", lastAddr);
+        echo_all();
+      }
+      if (SR(3) == SR(4) == 1) {
+        sprintf(S, "Undervoltage error @ %06x\r\n", lastAddr);
+        echo_all();
+      }
+      if (SR(4) == 1 || SR(5) == 1) {
+        sprintf(S, "Unable to multibyte write @ %06x\r\n", lastAddr);
+        echo_all();
+      }
+
+      sprintf(S, "\r\nTIMEOUT STATUS=%x\r\n", SRD);
+      echo_all();
+      // Done retrying
+      return false;
+    } else {
+      flashSetupMultiByteWriteRetries++;
+
+      // Retry
+      flashCommand(lastAddr, CMD_STATUS_CLR);
+      delayMicroseconds(delayUs);
+    }
+  }
+}
 
 // Returns whether programming should continue
 bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expectedBytes) {
@@ -368,12 +424,17 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
     }
     int wordsToWrite = bytesToWrite / 2;
 
-    while (true) {
-      flashCommand(addr, 0xe8);
-      flashReadStatus();
-      if (SR(7)) { break; }
-      debug_msw_start_retries++;
-      delayMicroseconds(250);
+    if (!flashSetupMultiByteWrite(addr)) {
+      // If we time out, try resetting
+      flashCommand(lastAddr, CMD_STATUS_CLR);
+      delay(100);
+      flashCommand(lastAddr, CMD_RESET);
+      delay(100);
+      flashClearLocks();
+      delay(100);
+      flashCommand(lastAddr, CMD_STATUS_CLR);
+      echo_all("\rRetrying...\r");
+      continue;
     }
 
     // XSR.7 == 1 now, ready for write
@@ -425,19 +486,9 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
 
       // 40ns / 4.0e-8s minimum holding down WE is required
       // 13 cycles @300Mhz (3.3e-9s), <1 cycle @12Mhz (8.3e-8s) (SPI clock)
-      // If you OC to 24Mhz (4.1e-8s) this is dangerously close to one clock cycle
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
-      NOP;
+      // If you OC to 24Mhz (4.1e-8s) this is close to one clock cycle
+      // At this nanosecond scale, adding a few NOP for safety has almost no tangible impact
+      NOP;NOP;NOP;NOP;NOP;NOP;NOP;
 
       // WE HIGH
       writeMCP23017_noTransaction_singlePort(MCP_CS_ADDR1, MCP_REG_ADDR1_B,
@@ -454,12 +505,15 @@ bool flashWriteBuffer(uint8_t *buf, size_t bufLen, uint32_t &addr, uint32_t expe
 
   // Buffer empty, return to main loop, or finish up
   if (addr >= expectedBytes) {
-    echo_all("\rFinishing...\r");
+    // echo_all("\rFinishing...\r");
     flashWaitUntilDone();
     flashCommand(lastAddr, CMD_RESET);
 
-    sprintf(S, "\r\nMSW retries=%d\r\n", debug_msw_start_retries);
-    echo_all();
+    if (flashSetupMultiByteWriteRetries > 0) {
+      sprintf(S, "\r\nPaused for full write buffer %d times\r\n", flashSetupMultiByteWriteRetries);
+      echo_all();
+      flashSetupMultiByteWriteRetries = 0;
+    }
 
     double sec = (millis() - stopwatch) / 1000.0;
     sprintf(S, "\r\nWrote %d bytes in %0.2f sec (%0.1f KB/s)\r\n", addr, sec, addr / sec / 1024.0);
