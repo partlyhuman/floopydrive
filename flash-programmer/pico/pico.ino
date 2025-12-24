@@ -2,7 +2,7 @@
 //   Earle Philhower Arduino-Pico core (board manager: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json)
 //   Waveshare RP2040 Zero (actual hardware is RP2040 Tiny)
 //   Flash Size: 2MB (Sketch: 1MB, FS: 1MB)
-//   CPU Speed: 240 MHz (Overclock)
+//   CPU Speed: 300 MHz (Overclock)
 //   Optimize: Optimize More (-O2)
 //   USB Stack: Adafruit TinyUSB
 
