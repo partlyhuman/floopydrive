@@ -8,7 +8,7 @@ static int bootErrors = 0;
 
 void onSuccess(bool echoOk = true) {
   if (echoOk) echo_ok();
-  busIdle();
+  setControl(IDLE);
   ledColor(0);
 }
 
@@ -52,7 +52,14 @@ void loop_programming() {
     // ERASE COMMAND
     if (buf[1] == '\r') {
       ledColor(BLUE);
+      flashCommand(0, CMD_RESET);
+      delay(100);
+      flashClearLocks();
+      delay(100);
+      flashCommand(0, CMD_RESET);
+      delay(100);
       flashEraseAll();
+      delay(100);
       flashCommand(0, CMD_RESET);
       onSuccess();
     } else if (buf[1] == 's' && buf[2] == '\r') {
@@ -227,12 +234,33 @@ void loop_programming() {
   }
 
   else if (buf[0] == 'N') {
+    // SET NICKNAME
     if (sscanf((char *)buf, "N%[^\r]\r", S) && strlen(S) > 0) {
       setNickname(S);
       onSuccess();
     } else {
       setNickname(NULL);
       onSuccess();
+    }
+  }
+
+  else if (buf[0] == 'O' && buf[1] == 'C') {
+    // MODIFY SPI OVERCLOCK
+    long newSpiClock;
+    if (buf[2] == '+') {
+      newSpiClock = SPI_OC2_UNSTABLE;
+    } else if (buf[2] == '-') {
+      newSpiClock = SPI_OC0;
+    } else if (sscanf((char *)buf, "OC%ld\r", &newSpiClock) && newSpiClock > MHZ) {
+    } else {
+      newSpiClock = SPI_OC1_TESTED;
+    }
+    mcpSetSpiClock(newSpiClock);
+    sprintf(S, "Set SPI clock speed to %d MHz\r\n", newSpiClock / MHZ);
+    echo_all();
+    if (newSpiClock >= SPI_OC2_UNSTABLE) {
+      echo_all("WARNING: This clock speed is beyond tested stable speeds.\r\n");
+      echo_all("if you experience issues, disconnect your Floopy Drive.\r\n");
     }
   }
 
@@ -290,12 +318,10 @@ void setup_programming() {
 
   // Setup IO expanders
   SPI.begin();
-  mcpAddr0.setSPIClockSpeed(SPI_SPEED);
-  mcpAddr1.setSPIClockSpeed(SPI_SPEED);
-  mcpData.setSPIClockSpeed(SPI_SPEED);
   if (!mcpAddr0.Init()) bootError("mcpAddr0 fail");
   if (!mcpAddr1.Init()) bootError("mcpAddr1 fail");
   if (!mcpData.Init()) bootError("mcpData fail");
+  mcpSetSpiClock(SPI_OC1_TESTED);
 
   ioWriteMode(&mcpData);
   ioWriteMode(&mcpAddr0);

@@ -1,17 +1,25 @@
+// ARDUINO BUILD SETTINGS
+//   Earle Philhower Arduino-Pico core (board manager: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json)
+//   Waveshare RP2040 Zero (actual hardware is RP2040 Tiny)
+//   Flash Size: 2MB (Sketch: 1MB, FS: 1MB)
+//   CPU Speed: 300 MHz (Overclock)
+//   Optimize: Optimize More (-O2)
+//   USB Stack: Adafruit TinyUSB
+
 #include <SPI.h>
-#include <MCP23S17.h>
 #include <Adafruit_TinyUSB.h>
 #include <Adafruit_NeoPixel.h>
 #include <LittleFS.h>
+#include <MCP23S17.h>  // MCP23017_WE library https://docs.arduino.cc/libraries/mcp23017_we/
 #include "generated.h"
 
 #define HW_REVISION 8
-// The MCP23S17 is rated for 10MHz
-#define SPI_SPEED 10000000
-#define DEBUG_LED
 
-// Delays one clock cycle or 7ns | 133MhZ = 0.000000007518797sec = 7.518797ns
-#define NOP __asm__("nop\n\t")
+#undef DEBUG_LED
+
+// Delays one clock cycle or 7ns @ 133MhZ = 0.000000007518797sec = 7.518797ns
+// #define NOP 
+#define NOP asm volatile("nop")
 #define HALT while (true)
 
 #define ADDRBITS 22
@@ -21,6 +29,7 @@
 #define FLASH_BANK_SIZE 0x200000
 #define FLASH_SIZE FLASH_BANK_SIZE << 1
 #define CMD_RESET 0xff
+#define CMD_STATUS_CLR 0x50
 #define PIN_INSERTED 14
 #define USB_BUFSIZE 64
 
@@ -31,9 +40,28 @@ Adafruit_USBD_WebUSB usb_web;
 #define MCP_NO_RESET_PIN 100
 // SPI addresses for MCP23017 are: 0 1 0 0 A2 A1 A0
 // Note we almost certainly don't need differing addresses any more since REV6 gave each a unique CE, but no harm keeping it
-MCP23S17 mcpData = MCP23S17(5, MCP_NO_RESET_PIN, 0b0100000);   //Data IO, D0-D15, Address 0x0
-MCP23S17 mcpAddr0 = MCP23S17(6, MCP_NO_RESET_PIN, 0b0100001);  //Address IO, A0-A15, Address 0x1
-MCP23S17 mcpAddr1 = MCP23S17(7, MCP_NO_RESET_PIN, 0b0100010);  //Address and control IO, A16-A21, OE, RAMCE, RAMWE, ROMCE, ROMWE, RESET, Address 0x2
+#define MCP_ADDR_DATA 32
+#define MCP_ADDR_ADDR0 33
+#define MCP_ADDR_ADDR1 34
+#define MCP_CS_DATA 5
+#define MCP_CS_ADDR0 6
+#define MCP_CS_ADDR1 7
+// The MCP23S17 is rated for 10MHz, overclock it
+// 24Mhz yields highest speeds but was too fast for 1/10 Floopy Drives 
+#define SPI_OC0 10 * MHZ
+#define SPI_OC1_TESTED 12 * MHZ
+#define SPI_OC2_UNSTABLE 24 * MHZ
+SPISettings mcpSettings = SPISettings(SPI_OC1_TESTED, MSBFIRST, SPI_MODE0);
+MCP23S17 mcpData = MCP23S17(MCP_CS_DATA, MCP_NO_RESET_PIN, MCP_ADDR_DATA);   //Data IO, D0-D15, Address 0x0
+MCP23S17 mcpAddr0 = MCP23S17(MCP_CS_ADDR0, MCP_NO_RESET_PIN, MCP_ADDR_ADDR0);  //Address IO, A0-A15, Address 0x1
+MCP23S17 mcpAddr1 = MCP23S17(MCP_CS_ADDR1, MCP_NO_RESET_PIN, MCP_ADDR_ADDR1);  //Address and control IO, A16-A21, OE, RAMCE, RAMWE, ROMCE, ROMWE, RESET, Address 0x2
+
+void mcpSetSpiClock(unsigned long clock) {
+  mcpSettings = SPISettings(clock, MSBFIRST, SPI_MODE0);
+  mcpAddr0.setSPIClockSpeed(clock);
+  mcpAddr1.setSPIClockSpeed(clock);
+  mcpData.setSPIClockSpeed(clock);
+}
 
 // sprintf buffer
 char S[USB_BUFSIZE];
@@ -44,9 +72,9 @@ unsigned long stopwatch;
 uint16_t SRD;
 #define SR(n) bitRead(SRD, n)
 
-#define RED  0xFF0000
+#define RED 0xFF0000
 #define BLUE 0x0000FF
-Adafruit_NeoPixel led(1, 16, NEO_GRB);
+Adafruit_NeoPixel led(1, 16, NEO_RGB);
 
 inline void ledColor(uint32_t c) {
   led.setPixelColor(0, c);
@@ -91,24 +119,24 @@ inline void databusWriteMode() {
   databusMode = WRITE;
 }
 
+// cache address and only set bits that changed
+static uint32_t lastAddr = 0;
+
 // NOTE address is in bytes, though we write words
 inline void setAddress(uint32_t addr) {
-  // cache address and only set bits that changed
-  static uint32_t lastAddr = 0;
   uint32_t diff = addr ^ lastAddr;
 
-  // // A0-A7
-  // if ((diff & 0x000000ff) != 0) {
-  //   mcpAddr0.setPort(addr & 0xff, A);
-  // }
-  // // A8-A15
-  // if ((diff & 0x0000ff00) != 0) {
-  //   mcpAddr0.setPort((addr >> 8) & 0xff, B);
-  // }
-
-  // A0-A15
-  if ((diff & 0x0000ffff) != 0) {
+  bool diffA = (diff & 0x000000ff) != 0;
+  bool diffB = (diff & 0x0000ff00) != 0;
+  if (diffA && diffB) {
+    // A0-A15
     mcpAddr0.setPort(addr & 0xff, (addr >> 8) & 0xff);
+  } else if (diffA) {
+    // A0-A7
+    mcpAddr0.setPort(addr & 0xff, A);
+  } else if (diffB) {
+    // A8-A15
+    mcpAddr0.setPort((addr >> 8) & 0xff, B);
   }
 
   // A16-A21
@@ -161,10 +189,7 @@ inline void writeByte(uint32_t addr, uint8_t byte) {
 void echo_all(const char *buf = NULL) {
   if (!usb_web.connected()) return;
 
-  if (buf == NULL) {
-    buf = S;
-    // S is already the correct size
-  } else {
+  if (buf) {
     // A string is provided, this will pad it to buffer size and fill with NUL
     strncpy(S, buf, USB_BUFSIZE);
   }
