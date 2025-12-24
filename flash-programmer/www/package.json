@@ -1,6 +1,6 @@
 {
   "name": "loopycart-flash-programmer-www",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "WebUSB interface to Floopy Drive programmer",
   "scripts": {
     "start": "parcel src/index.html",

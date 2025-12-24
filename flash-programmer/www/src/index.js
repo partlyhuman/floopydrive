@@ -8,7 +8,7 @@ console.log(`%c💞Floopy Drive interface ${PACKAGE.version}`, 'font-size: 200%'
 
 // Warn if this doesn't match. Inserting this could be automated but that would require lockstep commits
 // Something better could be done with build automation that builds Arduino and web
-const FW_CURRENT = '8ab2047';
+const FW_CURRENT = 'e569b1f';
 
 const U32_MAX = 0xffffffff;
 const SERIAL_BUFFER_SIZE = 64;
