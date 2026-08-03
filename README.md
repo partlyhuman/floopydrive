@@ -23,7 +23,7 @@ Related repositories:
 * [OSCR](https://github.com/sanni/cartreader) — I contributed a Casio Loopy adapter and code to the Open Source Cartridge Dumper, as well as a [makeshift adapter](https://github.com/sanni/cartreader/discussions/354#discussioncomment-10103848) that doesn't require an original cart connector
 * [Loopy-Tools](https://github.com/kasamikona/Loopy-Tools) — a treasure trove of documentation and tooling around the Loopy by @kasamikona
 * [Loopy-Schematics](https://github.com/kasamikona/Loopy-Schematics) - Schematics for various parts of, and accessories for, the Casio Loopy by @kasamikona
-* [LoopyMSE](https://github.com/PSI-Rockin/LoopyMSE) — an open-source cross-platform Loopy emulator by @PSI-Rockin
+* [LoopyMSE](https://github.com/LoopyMSE/LoopyMSE) — an open-source cross-platform Loopy emulator created by @PSI-Rockin
 
 ### Contributors! 💕
 
